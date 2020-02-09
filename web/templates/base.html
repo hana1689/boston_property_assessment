@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <title>Home page</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" type="text/css" />
+    <link href="{{ url_for('static', filename='css/main.css') }}" rel="stylesheet">
+</head>
+<body>
+    <header class="masthead">
+        <div class="container h-100">
+            <div class="d-flex h-100 text-center align-items-center">
+                <div class="w-100 text-white">
+                    <h1>A PLACE TO CALL HOME</h1>
+                </div>
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <form class ="page-section">
+            <h2>Zipcode</h2>
+            <select id="code">
+                <option selected></option>
+                {% for item in items %}
+            <option value= {{item}}>0{{item}}</option>
+                {% endfor %}
+            </select>
+            <h2>Street</h2>
+            <select style="width: 200px" id="street"></select><br>
+            <h2>Price Range</h2>
+            <select style="width: 200px" id="price">
+                <option selected></option>
+                <option> < 80000 </option>
+                <option> between 80000 and 150000 </option>
+                <option> between 150000 and 250000 </option>
+                <option> between 250000 and 350000 </option>
+                <option> between 350000 and 450000 </option>
+                <option> between 450000 and 550000 </option>
+                <option> between 550000 and 650000 </option>
+                <option> between 650000 and 750000 </option>
+                <option> between 750000 and 850000 </option>
+                <option> between 850000 and 950000 </option>
+                <option> > 950000 </option>
+            </select><br>
+            <h2>Short-term Rental (<30 days)</h2>
+            <input type="radio" name="rental-check" value="Yes">Yes<br>
+            <input type="radio" name="rental-check" value="No">No<br><br>
+            <button type="button" class="btn btn-primary" id="submit_prop">View Property</button>
+        </form>
+    </div>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-10 mx-auto">
+                <div class="chart"></div>
+            </div>
+        </div>
+    </div>
+    <section class="page-section map-view">
+        <div class="container">
+            <h1>Enter Distance (miles): </h1>
+            <input class="inputBox" type="number" id="distance" placeholder="Enter Distance" />
+            <button class="btn btn-primary" id="submit_distance">View Neighbor</button><br><br>
+            <div id='map' style='width: 1000px; height: 500px;'></div>
+        </div>
+    </section>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.2/js/bootstrap.min.js"></script>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+    <script>
+        function initMap() {
+            var boston = {lat: 42.361145, lng: -71.057083}
+            var map = new google.maps.Map(document.getElementById('map'), {
+            zoom: 15,
+            center: {lat: 42.361145, lng: -71.057083}
+            });
+            var marker = new google.maps.Marker({
+            position: boston,
+            map: map
+            });
+        }
+    </script>
+    <script async defer
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCTW_mixxXpxF127WI3iFBWdU8sneMBu90&callback=initMap">
+    </script>
+    <script>
+        $("select#code").change(function(){
+            var code = $("select#code").children("option:selected").val();
+            $.ajax(
+            {
+                type: "POST",
+                url: "{{ url_for('get_street_list') }}",
+                dataType: 'json',
+                data: {
+                    zip_code: code,
+                },
+                success: function(data) {
+                    $("#street").empty();
+                    // var json = JSON.parse(data);
+                    $.each(data, function(k,v) {
+                        var option = "<option value='"+ v + "'>" + v + "</option>";
+                        $('#street').append(option);
+                    });
+                }
+            })
+        });
+    </script>
+    <script>
+        $(document).ready(function() {
+            $("#submit_prop").click(function(e) {
+                e.preventDefault();
+                var street_name = $("select#street").children("option:selected").val();
+                var code = $("select#code").children("option:selected").val();
+                var price = $("select#price").children("option:selected").val();
+                var rental = $("input[name='rental-check']:checked").val();
+                $("#distance").val('');
+
+                $.when(
+                    $.ajax({
+                        type: "POST",
+                        url: "{{ url_for('get_body_data') }}",
+                        dataType: 'json',
+                        data: { 
+                            street_name: street_name,
+                            price: price,
+                            zip_code: code,
+                            rental: rental
+                        },
+                        success:function(data){
+                            bar_data = data
+                        }
+                    }),
+                    $.ajax({
+                        type: "POST",
+                        url: "{{ url_for('get_crime_map_data') }}",
+                        dataType: 'json',
+                        data: { 
+                            street_name: street_name,
+                            zip_code: code
+                        },
+                        success:function(data) {
+                            map_data = data
+                        }
+                    }),
+                    $.ajax({
+                        type: "POST",
+                        url: "{{ url_for('get_fire_map_data') }}",
+                        dataType: 'json',
+                        data: { 
+                            street_name: street_name,
+                            zip_code: code
+                        },
+                        success:function(data) {
+                            fire_data = data
+                        }
+                    }),
+                    $.ajax({
+                        type: "POST",
+                        url: "{{ url_for('get_police_data') }}",
+                        dataType: 'json',
+                        data: { 
+                            street_name: street_name,
+                            zip_code: code
+                        },
+                        success:function(data) {
+                            police_data = data
+                        }
+                    })
+                ).then(function() {     
+
+                        d3.select(".chart").selectAll("svg").remove()
+                        var margin = {top: 20, right: 10, bottom: 60, left: 60},
+                            width = 1060 - margin.left - margin.right,
+                            height = 500 - margin.top - margin.bottom;
+
+                        var chart = d3.select(".chart").append("svg")
+                            .attr("width", width + margin.left + margin.right)
+                            .attr("height", height + margin.top + margin.bottom)
+                            .append("g") 
+                            .attr("transform", "translate(" + margin.left + "," + margin.top + ")"); 
+                        
+                        var tooltip = d3.select(".chart").append("div").attr("class", "toolTip");
+
+                        var yScale = d3.scaleLinear()
+                            .range([height, 0]);
+
+                        var xScale = d3.scaleBand()
+                            .rangeRound([0, width])
+                            .padding(.1).round(true); 
+
+                        d3.json(bar_data, function(error, data) {
+                            yScale.domain([0, d3.max(bar_data, function(s) { return s.av_total; })]);
+                            xScale.domain(bar_data.map(function(s) { return s.st_name; }));
+
+                            bar_data.forEach(function(d) {
+                                d.mail = bar_data.mail_address;
+                                d.size = bar_data.av_land;
+                            });
+
+                            var xAxis = d3.axisBottom(xScale);
+                            var yAxis = d3.axisLeft(yScale);  
+
+                            function type(d) {
+                                d.value = Math.round(+d.value*1000)/1000; 
+                                return d;
+                            }
+
+                            var xaxis = chart.append("g") 
+                                .attr("class", "axis") 
+                                .attr("transform", "translate(0," + height + ")") 
+                                .call(xAxis)
+                                .selectAll("text")
+                                    .attr("transform", "translate(-10,10)rotate(-13)")
+                                    .style("text-anchor", "middle")
+                                    .style("font-size", 11)
+                                    .style("fill", "#283a57");
+
+                            var yaxis = chart.append("g")
+                                .attr("class", "y_axis")
+                                .call(yAxis); 
+                            
+                            var bars =  
+                                chart.selectAll(".bar")
+                                    .data(bar_data) 
+                                    .enter().append("rect")
+                                        .attr("class", "bar")
+                                        .attr("x", function(d) { return xScale(d.st_name); })
+                                        .attr("y", function(d) { return yScale(d.av_total); })
+                                        .attr('fill', 'grey')
+                                        .attr("height", function(d) { return height - yScale(d.av_total); })
+                                        .attr("width", xScale.bandwidth())
+                                        .on('mouseover', function(d){
+                                            tooltip
+                                            .style("left", d3.event.pageX - 140 + "px")
+                                            .style("top", d3.event.pageY - 700  + "px")
+                                            .style("display", "inline-block")
+                                            .html(
+                                                "<strong style='color:green'>Street Name:</strong> " + (d.st_name) + "<br>"
+                                                + "<strong style='color:green'>Mail Address:</strong> " + (d.mail_address) + "<br>"
+                                                + "<strong style='color:green'>Land Size:</strong> " + (d.av_land) + "<br>"
+                                                + "<strong style='color:green'>Year of Built:</strong> " + (d.yr_built) + "<br>"
+                                                + "<strong style='color:green'>Year of Renovated:</strong> " + (d.yr_remod) + "<br>"
+                                                + "<strong style='color:green'>Number of Floors:</strong> " + (d.num_floors) + "<br>"
+                                                );
+                                        })
+                                        .on("mouseout", function(d){ tooltip.style("display", "none");});
+                                                                    
+                            var texts =  
+                                chart.selectAll(".text")
+                                    .data(bar_data) 
+                                    .enter().append("text")
+                                        .attr("class", "label")
+                                        .text(function(d){return d.av_total;})
+                                        .attr("text-anchor", "middle")
+                                        .attr("x", function(d){return xScale(d.st_name) + xScale.bandwidth()/2;}) 
+                                        .attr("y", function(d){return yScale(d.av_total)-1;})
+                                        .attr("fill", "red")
+
+                        }); 
+                    
+                    var map = new google.maps.Map(document.getElementById('map'), {
+                        zoom: 17,
+                        mapTypeId: 'terrain'
+                    });
+                    for (i in map_data) {
+                        var my_lat;
+                        var my_lng;
+                        my_lat = parseFloat(map_data[i]["lat"]);
+                        my_lng = parseFloat(map_data[i]["lng"]);
+                        var myLatLng = {lat: my_lat, lng: my_lng};
+                        map.setCenter(myLatLng);
+                        var marker = new google.maps.Marker({
+                            position: myLatLng,
+                            label: "C",
+                            map: map
+                        });
+                    }
+                    for (i in fire_data) {
+                        var my_lat;
+                        var my_lng;
+                        my_lat = parseFloat(map_data[i]["lat"]);
+                        my_lng = parseFloat(map_data[i]["lng"]);
+                        var myLatLng = {lat: my_lat, lng: my_lng};
+                        map.setCenter(myLatLng);
+                        var marker = new google.maps.Marker({
+                            position: myLatLng,
+                            label: "F",
+                            icon: "http://maps.google.com/mapfiles/ms/icons/green-dot.png",
+                            map: map
+                        });
+                    }
+                    for (i in police_data) {
+                        var my_lat;
+                        var my_lng;
+                        my_lat = parseFloat(map_data[i]["lat"]);
+                        my_lng = parseFloat(map_data[i]["lng"]);
+                        var myLatLng = {lat: my_lat, lng: my_lng};
+                        map.setCenter(myLatLng);
+                        var marker = new google.maps.Marker({
+                            position: myLatLng,
+                            label: "P",
+                            icon: "http://maps.google.com/mapfiles/ms/icons/yellow-dot.png",
+                            map: map
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+    <script>
+        $(document).ready(function() {
+            $("#submit_distance").click(function(e) {
+                e.preventDefault();
+                var street_name = $("select#street").children("option:selected").val();
+                var code = $("select#code").children("option:selected").val();
+                var distance = $("#distance").val();
+
+                $.ajax({
+                    type: "GET",
+                    url: "{{ url_for('get_distance_data') }}",
+                    dataType: 'json',
+                    data: { 
+                        street_name: street_name,
+                        zip_code: code,
+                        distance: distance
+                    },
+                    success:function(data) {
+                        var map = new google.maps.Map(document.getElementById('map'), {
+                            zoom: 17,
+                            mapTypeId: 'terrain'
+                        });
+                        var crime_data = data['crime']
+                        var fire_data = data['fire']
+                        var police_data = data['police']
+                        for (i in crime_data) {
+                            var my_lat;
+                            var my_lng;
+                            my_lat = parseFloat(crime_data[i]["lat"]);
+                            my_lng = parseFloat(crime_data[i]["lng"]);
+                            var myLatLng = {lat: my_lat, lng: my_lng};
+                            map.setCenter(myLatLng);
+                            var marker = new google.maps.Marker({
+                                position: myLatLng,
+                                label: "C",
+                                map: map
+                            });
+                        }
+                        for (i in fire_data) {
+                            var my_lat;
+                            var my_lng;
+                            my_lat = parseFloat(crime_data[i]["lat"]);
+                            my_lng = parseFloat(crime_data[i]["lng"]);
+                            var myLatLng = {lat: my_lat, lng: my_lng};
+                            map.setCenter(myLatLng);
+                            var marker = new google.maps.Marker({
+                                position: myLatLng,
+                                label: "F",
+                                icon: "http://maps.google.com/mapfiles/ms/icons/green-dot.png",
+                                map: map
+                            });
+                        }
+                        for (i in police_data) {
+                            var my_lat;
+                            var my_lng;
+                            my_lat = parseFloat(crime_data[i]["lat"]);
+                            my_lng = parseFloat(crime_data[i]["lng"]);
+                            var myLatLng = {lat: my_lat, lng: my_lng};
+                            map.setCenter(myLatLng);
+                            var marker = new google.maps.Marker({
+                                position: myLatLng,
+                                label: "P",
+                                icon: "http://maps.google.com/mapfiles/ms/icons/yellow-dot.png",
+                                map: map
+                            });
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+  </body>
+</html>
