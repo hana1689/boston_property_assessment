@@ -15,6 +15,8 @@ Those datasets are loaded into S3 data bucket. Then, a python script is develope
 
 # Schema Design
 
+![ER](https://user-images.githubusercontent.com/41086130/74114047-d41abb80-4b75-11ea-9ab8-22c43a5d9006.jpg)
+
 # Environmental Setup
 EC2 setup
 PostgreSQL setup
