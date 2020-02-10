@@ -1,11 +1,20 @@
 # boston_property_assessment
 
+# Table of Content
+## Introduction
+## DataSet
+## Data Pipeline
+## Repo Directory Structure
+## Schema Design
+## Envionmental Setup
+## Instructions
+
 # Introduction
 This is a data engineering project developed at Insight Data Science, Boston. The project is about exploring Boston property assessment and neighborhood data. The project aims to accomplish these features:
 Build a data pipeline to translating different datasets into business insights and provide clean data for analysis or perform queries.
 Enable a framework for viewing property and neighborhood data, so that a user can have a better view of property assessment across a city and able to spot any specific neighborhood to view historical data related to crime, fire, rental, and police stations.
 
-# Data Set
+# DataSet
 The project is based on historical geolocation data from Boston government website, collected over a year's time frame (200MB). They are six different datasets which are a crime report, a fire report, police stations, property, short-term rental eligibily, and boston address. These datasets are updated every year. 
 
 # Data Pipeline
