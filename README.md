@@ -26,14 +26,14 @@ Those datasets are loaded into S3 data bucket. Then, a python script is develope
 
 # Instructions to run the pipeline
 1. Cleaning and Writing data into a database
-..* Install python packages 
+  * Install python packages 
   ```sudo yum install python3```
-..* Install pandas libary 
-..* Install psycopg2 libary
-..* Install boto3 libary
-..* Install SqlAlchemy libary
-..* Run MrJob
+  * Install pandas libary 
+  * Install psycopg2 libary
+  * Install boto3 libary
+  * Install SqlAlchemy libary
+  * Run MrJob
   
 2. Flask application
-  Install flask
-  Run run.py to start the web server
+  * Install flask
+  * Run run.py to start the web server
