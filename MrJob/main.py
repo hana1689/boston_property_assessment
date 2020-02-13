@@ -60,7 +60,7 @@ def read_and_write_db():
     police.read_and_write_police(police_df, engine)
     rental.read_and_write_rental(rental_df, engine)
     property.read_and_write_property(property_df, engine)
-    address.write_directions(directions_df, engine)
+    address.write_directions(directions_df)
 
 
 def main():
