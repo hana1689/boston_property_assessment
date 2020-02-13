@@ -1,4 +1,5 @@
 import pandas as pd
+from pandas import DataFrame
 import main
 
 conn = main.conn
@@ -43,224 +44,149 @@ def write_directions(directions_df):
     directions_df = directions_df.drop(directions_column, axis=1)
     # cast zipcode column to int
     directions_df['zip_code'] = pd.to_numeric(directions_df['zip_code'], downcast='signed')
+    directions_df['full_street_name'] = directions_df['full_street_name'].str.upper()
 
     # insert default values to other columns as the join is performed later
-    directions_df.insert(6, 'property_id', 0)
-    directions_df.insert(7, 'crime_id', 0)
-    directions_df.insert(8, 'fire_id', 0)
-    directions_df.insert(9, 'police_id', 0)
-    directions_df.insert(10, 'rental_id', 0)
+    directions_df = directions_df.sort_values(by=['full_street_name'])
+    directions_df['sam_id'] = directions_df['sam_address_id']
 
     # sort column street_name by alphabetic for the purpose of joining later
-    directions_df = directions_df.sort_values(by=['full_street_name'])
+    new_data = merge_rental(directions_df)
+    new_data = merge_police(new_data)
+    new_data = merge_property(new_data)
+    new_data = merge_crime(new_data)
+    new_data = merge_fire(new_data)
 
-    directions_df.to_sql("boston_data", engine, if_exists='append', index=False)
-
-    merge_property(directions_df)
-    merge_rental(directions_df)
-    merge_police(directions_df)
-    merge_crime(directions_df)
-    merge_fire(directions_df)
+    new_data.to_sql("boston_data", engine, if_exists='append', index=False)
 
 
-def merge_property(directions_df):
+def merge_property(new_data):
      """
-     This function is used to create the relationship for property table. First, it receives address from table above. Then, the loop is executed to compare
-     the street name between 2 datasets in each row. If the street name matches, the function gets the property_id from the property dataset to write into
-     the address table. If there is no match, property_id is set to 0. These values are then written to the database
-     :param directions_df: pass the boston address table obtained from the function above
+     This function is used to create the relationship for property table. First, it selects the id, street name, and zipcode from database. Then, the code
+     performs the join between boston address table and property table through street name and zipcode. Then, only id is updated back to the boston
+     address table
+     :param new_data: pass the boston address table obtained from the function above
      """
-     property_sql = 'SELECT property_id FROM property_assessment WHERE st_name = %(st_name)s'
-     for index, row in directions_df.iterrows():
-         street_name = str(row['full_address'].upper())
-         sam_id = str(row['sam_address_id'])
-         # execute the query to check if the street_name is the same. The query returns the property_id where it matches with the street_name in boston address
-         prop_id = pd.read_sql(property_sql, con=engine, params={"st_name": street_name})
-         if prop_id.empty:
-             cur.execute("UPDATE boston_data SET property_id = 0 where sam_address_id = '%s'" % sam_id)
-             conn.commit()
-         else:
-             for i in range(len(prop_id)):
-                 cur.execute("UPDATE boston_data SET property_id = %s where sam_address_id = %s" %(prop_id.loc[i, 'property_id'], sam_id))
-                 conn.commit()
+     sql_statement = "select property_id, st_name, zipcode from property_assessment"
+     new_data['full_address'] = new_data['full_address'].str.upper()
+     cur.execute(sql_statement)
+     conn.commit
+     tmp = cur.fetchall()
+     col_names = []
+     for elt in cur.description:
+         col_names.append(elt[0])
+     data = DataFrame(tmp, columns=col_names)
+     property_data = pd.merge(new_data, data, left_on=['full_address', 'zip_code'], right_on=['st_name', 'zipcode'],
+                              how='left').drop(['st_name', 'zipcode'], axis=1)
+     return property_data
 
 
-def merge_rental(directions_df):
+def merge_rental(new_data):
     """
-    This function is used to create the relationship for rental table. First, it receives sam_address_id from table above. Then, the loop is executed to compare
-    the sam_address_id between 2 datasets in each row. If there is a match, the function gets the id from the rental dataset to write into
-    the address table. If there is no match, rental_id is set to 0. These values are then written to the database
-    :param directions_df: pass the boston address table obtained from the function above
+    This function is used to create the relationship for rental table. First, it selects the id from database. Then, the code
+    performs the join between boston address table and rental table through the id. Then, id is updated back to the boston
+    address table
+    :param new_data: pass the boston address table obtained from the function above
     """
-
     # this query is executed to check if the sam_address_id is the same and that property is eligible for renting
-    rental_sql = 'SELECT sam_address_id FROM short_term_rental_eligibility WHERE sam_address_id = %{sam_id}s AND home_share_eligible = \'Y\''
+    sql_statement = "select sam_address_id as rental_id from short_term_rental_eligibility where home_share_eligible = 'Y'"
+    cur.execute(sql_statement)
+    conn.commit
+    tmp = cur.fetchall()
+    col_names = []
+    for elt in cur.description:
+        col_names.append(elt[0])
+    data = DataFrame(tmp, columns=col_names)
+    # this line of code is used to merge the rental dataset and the boston address dataset
+    rental_data = pd.merge(new_data, data, left_on=['sam_address_id'], right_on=['rental_id'], how='left')
+    return rental_data
 
-    for i in range(len(directions_df)):
-        sam_id = directions_df.loc[i, 'sam_address_id']
-        print i
-        rental_id = pd.read_sql(rental_sql, con=engine, params={"sam_id": sam_id})
 
-        if rental_id.empty:
-            cur.execute("UPDATE boston_data SET rental_id = 0 where sam_address_id = '%s'" % sam_id)
-            conn.commit()
+def merge_police(new_data):
+    """
+    This function is used to create the relationship for police table. First, it selects the id and address from database. Then, the code
+    performs the join between boston address table and police table through address. Then, only id is updated back to the boston
+    address table
+    :param new_data: pass the boston address table obtained from the function above
+    """
+    sql_statement = "select objectid as police_id, address from police_station"
+    cur.execute(sql_statement)
+    conn.commit
+    tmp = cur.fetchall()
+    col_names = []
+    for elt in cur.description:
+        col_names.append(elt[0])
+    data = DataFrame(tmp, columns=col_names)
+    # this line of code is used to merge the police dataset and the boston address dataset
+    police_data = pd.merge(new_data, data, left_on=['full_address'], right_on=['address'], how='left').drop(['address'], axis=1)
+    return police_data
+
+
+def merge_crime(new_data):
+    """
+    The idea of this function is one street address may have many crimes. First, we will obtain the unique street name. Then, a loop is built to iterate
+    through that list of unique street name. Then, we select only records from the dataframe where street name matches. The last step is to retrieve crime_id
+    from crime table at this street name and update it back to the boston address dataframe
+    :param new_data: pass the boston address table obtained from the function above
+    """
+    # this code receives a lit of unique street name from the boston address dataframe
+    street = new_data['full_street_name'].unique()
+    # iterate through each street
+    for i in range(street):
+        street_name = street[i]
+        # select all crime_id from table crime where street is equal to the street name above
+        crime_sql = "SELECT crime_id FROM crime WHERE street = %(st_name)s"
+        prop_id = pd.read_sql(crime_sql, con=engine, params={"st_name": street_name})
+        # this line of code retrieves a list of rows where street name is equal to the street name above
+        prop_id1 = new_data[new_data['full_street_name'] == street_name]
+        # only index is obtained and added to list
+        new_data = pd.DataFrame(prop_id1['sam_address_id'])
+        test = new_data.reset_index().values.tolist()
+
+        counter = 0
+        if len(prop_id1) < len(prop_id):
+            counter = len(prop_id1)
         else:
-            for k in range(len(rental_id)):
-                cur.execute("UPDATE boston_data SET rental_id = %s where sam_address_id = %s" %(rental_id.loc[k, 'sam_address_id'], sam_id))
-                conn.commit()
+            counter = len(prop_id)
 
+        # this block of code updates the crime_id column in the boston address dataframe where only index is met
+        for k in range(counter):
+            crime = prop_id.loc[k, 'crime_id']
+            sam_id = test[k][0]
+            new_data.at[sam_id, 'crime_id'] = crime
+    return new_data
 
-def merge_police(directions_df):
+def merge_fire(new_data):
     """
-    This function is used to create the relationship for police table. First, it receives street_name from table above. Then, the loop is executed to compare
-    the street_name between 2 datasets in each row. If there is a match, the function gets the id from the rental dataset to write into
-    the address table. If there is no match, police_id is set to 0. These values are then written to the database
-    :param directions_df: pass the boston address table obtained from the function above
+    The idea of this function is one street address may have many fires. First, we will obtain the unique street name. Then, a loop is built to iterate
+    through that list of unique street name. Then, we select only records from the dataframe where street name matches. The last step is to retrieve fire_id
+    from fire table at this street name and update it back to the boston address dataframe
+    :param new_data: pass the boston address table obtained from the function above
     """
+    # this code receives a lit of unique street name from the boston address dataframe
+    street = new_data['full_street_name'].unique()
+    for i in range(street):
+        street_name = street[i]
+        # select all fire_id from table fire where street is equal to the street name above
+        fire_sql = "SELECT fire_id FROM fire WHERE street_body = %(st_name)s"
+        prop_id = pd.read_sql(fire_sql, con=engine, params={"st_name": street_name})
+        # this line of code retrieves a list of rows where street name is equal to the street name above
+        prop_id1 = new_data[new_data['full_street_name'] == street_name]
+        # only index is obtained and added to list
+        new_data = pd.DataFrame(prop_id1['sam_address_id'])
+        test = new_data.reset_index().values.tolist()
 
-    # since the street_name in police table has 2 different formats (Ex: 12 A St and A St), the comparision takes care of 2 different formats
-    police_sql = 'SELECT objectid FROM police_station WHERE address = upper(%(street_name)s) OR address = upper(%(street_body)s)'
-
-    for index, row in directions_df.iterrows():
-        street_name = str(row['full_address'])
-        street_body = str(row['full_street_name'])
-        sam_id = str(row['sam_address_id'])
-
-        pol_id = pd.read_sql(police_sql, con=engine, params={"street_name": street_name, "street_body": street_body})
-
-        if pol_id.empty:
-            cur.execute("UPDATE boston_data SET police_id = 0 where sam_address_id = '%s'" % sam_id)
-            conn.commit()
+        counter = 0
+        if len(prop_id1) < len(prop_id):
+            counter = len(prop_id1)
         else:
-            for i in range(len(pol_id)):
-                cur.execute("UPDATE boston_data SET police_id = %s where sam_address_id = %s" % (
-                pol_id.loc[i, 'objectid'], sam_id))
-                conn.commit()
+            counter = len(prop_id)
+
+        # this block of code updates the fire_id column in the boston address dataframe where only index is met
+        for k in range(counter):
+            fire = prop_id.loc[k, 'fire_id']
+            sam_id = test[k][0]
+            new_data.at[sam_id, 'fire_id'] = fire
+    return new_data
 
 
-def merge_crime(directions_df):
-    """
-    The idea of this function is one street address may have many crimes. For every loop through boston address table, the function obtains only one crime_id
-    if there is a match. Then this id is added to an array. When it comes to the next row with the same street address, if this id is already existed
-    in the array, the query obtains another id which is different from the one in the array.
-    :param directions_df: pass the boston address table obtained from the function above
-    """
-    crime_sql = 'SELECT crime_id FROM crime WHERE street = upper(%(street_body)s) AND crime_id not in %(crime_id)s limit 1'
-    crime_sql1 = 'SELECT crime_id FROM crime WHERE street = upper(%(street_body)s) limit 1'
-    id_previous = []
-
-    for index in range(len(directions_df)):
-        street_body = directions_df.loc[index, "full_street_name"]
-        sam_id = directions_df.loc[index, "sam_address_id"]
-
-        crime_identity = ""
-        crime_id = pd.read_sql(crime_sql1, con=engine, params={"street_body": street_body})
-        print index;
-
-        if index == 0:
-            if crime_id.empty:
-                directions_df.loc[index, "crime_id"] = 0
-                id_previous.append('0')
-                cur.execute("UPDATE boston_data SET crime_id = 0 where sam_address_id = '%s'" % sam_id)
-                conn.commit()
-            else:
-                for h in range(len(crime_id)):
-                    directions_df.loc[index, 'crime_id'] = crime_id.loc[h, 'crime_id']
-                id_previous.append(directions_df.loc[index, 'crime_id'])
-                cur.execute("UPDATE boston_data SET crime_id = %s where sam_address_id = %s" % (directions_df.loc[index, 'crime_id'], sam_id))
-                conn.commit()
-        else:
-            k = index - 1
-            while (k > 0) & (directions_df.loc[k, "full_street_name"] == street_body):
-                id_previous.append(directions_df.loc[k, "crime_id"])
-                k = k - 1
-
-            if crime_id.empty:
-                directions_df.loc[index, "crime_id"] = 0
-                cur.execute("UPDATE boston_data SET crime_id = 0 where sam_address_id = '%s'" % sam_id)
-                conn.commit()
-            else:
-                for p in range(len(crime_id)):
-                    crime_identity = crime_id.loc[p, 'crime_id']
-                if crime_identity not in id_previous:
-                    directions_df.loc[index, "crime_id"] = crime_identity
-                    cur.execute("UPDATE boston_data SET crime_id = %s where sam_address_id = %s" % (
-                        crime_identity, sam_id))
-                    conn.commit()
-
-                else:
-                    crime_id2 = pd.read_sql(crime_sql, con=engine,
-                                            params={"street_body": street_body, "crime_id": tuple(id_previous)})
-                    if crime_id2.empty:
-                        directions_df.loc[index, "crime_id"] = 0
-                        cur.execute("UPDATE boston_data SET crime_id = 0 where sam_address_id = '%s'" % sam_id)
-                        conn.commit()
-                    else:
-                        for t in range(len(crime_id2)):
-                            directions_df.loc[index, 'crime_id'] = crime_id2.loc[t, 'crime_id']
-                        cur.execute("UPDATE boston_data SET crime_id = %s where sam_address_id = %s" % (directions_df.loc[index, 'crime_id'], sam_id))
-                        conn.commit()
-
-
-def merge_fire(directions_df):
-    """
-    The idea of this function is one street address may have many crimes. For every loop through boston address table, the function obtains only one crime_id
-    if there is a match. Then this id is added to an array. When it comes to the next row with the same street address, if this id is already existed
-    in the array, the query obtains another id which is different from the one in the array.
-    :param directions_df: pass the boston address table obtained from the function above
-    """
-    fire_sql = 'SELECT fire_id FROM fire WHERE street_name = upper(%(street_body)s) AND fire_id not in %(fire_id)s limit 1'
-    fire_sql1 = 'SELECT fire_id FROM fire WHERE street_name = upper(%(street_body)s) limit 1'
-    id_previous = list()
-
-    for index in range(len(directions_df)):
-         street_body = directions_df.loc[index, "full_street_name"]
-         sam_id = directions_df.loc[index, "sam_address_id"]
-
-         fire_identity1 = ""
-         fire_identity2 = ""
-         fire_id = pd.read_sql(fire_sql1, con=engine,
-                               params={"street_body": street_body})
-
-         if index == 0:
-             if not fire_id.empty:
-                 for h in range(len(fire_id)):
-                     directions_df.loc[index, 'fire_id'] = fire_id.loc[h, 'fire_id']
-                 id_previous.append(directions_df.loc[index, 'fire_id'])
-                 cur.execute("UPDATE boston_data SET fire_id = %s where sam_address_id = %s" % sam_id)
-                 conn.commit()
-             else:
-                 cur.execute("UPDATE boston_data SET fire_id = 0 where sam_address_id = %s" % sam_id)
-                 conn.commit()
-                 directions_df.loc[index, 'fire_id'] = 0
-                 id_previous.append('0')
-
-         else:
-             k = index - 1
-             while (k > 0) & (directions_df.loc[k, "full_street_name"] == street_body):
-                id_previous.append(directions_df.loc[k, "fire_id"])
-                k = k - 1
-
-             if not fire_id.empty:
-                 for m in range(len(fire_id)):
-                     fire_identity1 = fire_id.loc[m, 'fire_id']
-                 if fire_identity1 not in id_previous:
-                     directions_df.loc[index, "fire_id"] = fire_identity1
-                     cur.execute("UPDATE boston_data SET fire_id = %s where sam_address_id = %s" % (
-                         fire_identity1, sam_id))
-                     conn.commit()
-                 else:
-                     fire_id2 = pd.read_sql(fire_sql, con=engine,
-                                            params={"street_body": street_body,
-                                                    "fire_id": tuple(id_previous)})
-                     if not fire_id2.empty:
-                         for n in range(len(fire_id2)):
-                             fire_identity2 = fire_id2.loc[n, 'fire_id']
-                         directions_df.loc[index, 'crime_id'] = fire_identity2
-                         cur.execute("UPDATE boston_data SET fire_id = %s where sam_address_id = %s" % (
-                             fire_identity2, sam_id))
-                         conn.commit()
-             else:
-                 cur.execute("UPDATE boston_data SET fire_id = 0 where sam_address_id = %s" % sam_id)
-                 conn.commit()
-                 directions_df.loc[index, 'fire_id'] = 0
