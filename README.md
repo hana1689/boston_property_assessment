@@ -90,3 +90,6 @@ The primary keys first are developed for each dataset. Then the table in the mid
 * The user stores their information in an Amazon S3 bucket. 
 * The datasets are organized in a .csv type format. 
 * The information from boston address dataset is correct 
+
+## Contact Information
+Email: nguyenttha89@gmail.com
