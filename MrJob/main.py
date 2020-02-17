@@ -40,28 +40,25 @@ def read_and_write_db():
     This function is used to get data from s3, convert to data frame, and pass each data frame to a proper dataset python file to
     perform cleaning, validation, and writing into the database
     """
-    s3 = boto3.client('s3')
-    directions_obj = s3.get_object(Bucket=DESTINATION, Key='boston_address.csv')
-    fire_obj = s3.get_object(Bucket=DESTINATION, Key='fire-data.csv')
-    crime_obj = s3.get_object(Bucket=DESTINATION, Key='crime_data.csv')
-    police_obj = s3.get_object(Bucket=DESTINATION, Key='Boston_Police_Stations.csv')
-    property_obj = s3.get_object(Bucket=DESTINATION, Key='property-assessment.csv')
-    rental_obj = s3.get_object(Bucket=DESTINATION, Key='short-term-rental-eligibility.csv')
+    s3 = boto3.client('s3')                                                                                                                                       
+    key = ['fire-data.csv', 'crime_data.csv', 'Boston_Police_Stations.csv', 'property-assessment.csv', 'short-term-rental-eligibility.csv', 'boston_address.csv'] 
+    list = ['fire', 'crime', 'police', 'property', 'rental', 'address']                                                                                           
+    dict = {}                                                                                                                                                     
+                                                                                                                                                              
+    index = 0                                                                                                                                                     
+    for item in key:                                                                                                                                              
+        obj =  s3.get_object(Bucket=DESTINATION, Key=item)                                                                                                        
+        df = pd.read_csv(obj['Body'])                                                                                                                             
+        dict[list[index]] = [df]                                                                                                                                  
+        index += 1                                                                                                                                                
 
-    directions_df = pd.read_csv(directions_obj['Body'])
-    fire_df = pd.read_csv(fire_obj['Body'])
-    crime_df = pd.read_csv(crime_obj['Body'])
-    police_df = pd.read_csv(police_obj['Body'])
-    property_df = pd.read_csv(property_obj['Body'])
-    rental_df = pd.read_csv(rental_obj['Body'])
-
-    fire.read_and_write_fire(fire_df, engine)
-    crime.read_and_write_crime(crime_df, engine)
-    police.read_and_write_police(police_df, engine)
-    rental.read_and_write_rental(rental_df, engine)
-    property.read_and_write_property(property_df, engine)
-    address.write_directions(directions_df)
-
+    fire.read_and_write_fire(dict['fire'], engine)                                                                                                                
+    crime.read_and_write_crime(dict['crime'], engine)                                                                                                             
+    police.read_and_write_police(dict['police'], engine)                                                                                                          
+    rental.read_and_write_rental(dict['rental'], engine)                                                                                                          
+    property.read_and_write_property(dict['property'], engine)                                                                                                    
+    address.write_directions(dict['address'])                                                                                                                     
+                                                                                                                                                              
 
 def main():
     create_schema()
