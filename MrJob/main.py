@@ -49,7 +49,7 @@ def read_and_write_db():
     for item in key:                                                                                                                                              
         obj =  s3.get_object(Bucket=DESTINATION, Key=item)                                                                                                        
         df = pd.read_csv(obj['Body'])                                                                                                                             
-        dict[list[index]] = [df]                                                                                                                                  
+        dict[list[index]] = df                                                                                                                                  
         index += 1                                                                                                                                                
 
     fire.read_and_write_fire(dict['fire'], engine)                                                                                                                
