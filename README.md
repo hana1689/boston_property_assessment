@@ -86,6 +86,9 @@ The primary keys first are developed for each dataset. Then the table in the mid
   ```pip install Flask```
   * Run run.py to start the web server
   
+## Demo
+https://youtu.be/fNze9Uu3IO0
+  
 ## Assumptions
 * The user stores their information in an Amazon S3 bucket. 
 * The datasets are organized in a .csv type format. 
